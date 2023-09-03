@@ -1,0 +1,169 @@
+body {
+    color: #1E2022;
+    background-color: #F0F5F9;
+    font-family: "IBM Plex Mono", monospace, sans-serif;
+    font-size: 0.80rem;
+    margin: 0 auto;
+    padding: 0;
+}
+
+a {
+    color: #52616B;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+pre {
+    background-color: #C9D6DF;
+    font-family: "IBM Plex Mono";
+    padding: 0.8rem 1rem;
+}
+
+pre code {
+    padding: initial;
+    border-radius: initial;
+}
+
+code {
+    line-height: 0;
+    background-color: #C9D6DF;
+    padding: 2px;
+    border-radius: 4px;
+    font-family: "IBM Plex Mono";
+}
+
+#header {
+    margin: 1rem auto;
+    max-width: 720px;
+    text-align: center;
+    background-color: #F0F5F9;
+    border: solid 1px #52616B;
+    border-radius: 8px;
+    padding: 1rem 0rem;
+}
+
+#header .inner {
+    padding: 0 1rem;
+}
+
+/* table-related rules */
+#title tr {
+    vertical-align: middle;
+}
+
+td {
+    padding: 0;
+}
+
+#title td.image {
+    padding: 0 1rem 0 0;
+}
+
+#title td.image img {
+    height: 72px;
+}
+
+/* page content container rules */
+#content {
+    margin: 1rem auto;
+    max-width: 720px;
+}
+
+#content #title p,
+#content #title h1,
+#content #title h2,
+#content #title h3,
+#content #title h4,
+#content #title h5,
+#content #title h6 {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.card {
+    background-color: #F0F5F9;
+    border: solid 1px #52616B;
+}
+
+/* card title */
+#title {
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    padding: 1rem;
+}
+
+/* card body */
+#article {
+    border-top: dotted 1px;
+    border-radius: 0 0 8px 8px;
+    padding: 0 1rem;
+}
+
+#article .inner {
+    line-height: 1.5rem;
+}
+
+#toc {
+    border-top: dotted 1px;
+    border-radius: 0 0 8px 8px;
+    padding: 0.5rem 1rem;
+}
+
+#toc .inner {
+    line-height: 1.5rem;
+    width: 100%;
+}
+
+.article-ref .title {
+    vertical-align: middle;
+    padding-left: 8px;
+}
+
+.article-ref .date {
+    vertical-align: middle;
+    font-size: small;
+    /* width: 0; 
+    padding-right: 0rem; */
+}
+
+#footer {
+    font-size: x-small;
+    max-width: 720px;
+    margin: 1rem auto;
+    padding: 0rem 1rem 1rem 1rem;
+}
+
+#footer .inner { 
+    padding: 0 1rem;
+}
+
+#footer .info {
+    float: right;
+    color: rgba(0, 0, 0, 0);
+}
+
+#footer .info:hover {
+    color: inherit;
+}
+
+/* dark mode overrides */
+
+#dark-button {
+    font-size: 1rem;
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+}
+
+.darken {
+    color: #F0F5F9;
+    background-color: #0f1117;
+}
+
+code.darken, pre.darken {
+    color: #C9D6DF;
+    background-color: #1E2022;
+}

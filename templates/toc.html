@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>kfold</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet"> 
+<link rel="stylesheet" href="/styles.css">
+<script src="/dark.js"></script>
+<meta name="robots" content="noindex, nofollow" />
+</head>
+<body>
+    <div id="content">
+        <div id="title" class="card">
+        <table class="inner">
+            <tr>
+            <td class="image"><a href="/"><img src="/logo.png"></a></td>
+            <td>
+                <h1>kfold.net</h1>
+                <small>
+                <p>website of Mia K, AI/ML hacker.</p>
+                <a href="/about">about</a>.
+                <a href="/links">links</a>.
+                </small>
+                </td>
+            </tr>
+        </table>
+        </div>
+
+        <div id="toc" class="card">
+        <table class="inner">
+        {% for item in toc %}
+            <tr class="article-ref">
+                <td class="date">{{ item.date }}</td><td class="title"><a href="/{{ item.id }}">{{ item.title }}</a>
+                {% if item.desc is defined %} - <span class="desc">{{ item.desc }}</span>{% endif %}</td>
+            </tr>
+        {% endfor %}
+        </table>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>kfold</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet"> 
+<link rel="stylesheet" href="/styles.css">
+<script src="/dark.js"></script>
+<meta name="robots" content="noindex, nofollow" />
+</head>
+<body>
+    <div id="content">
+        <div id="title" class="card">
+        <table class="inner">
+            <tr>
+            <td class="image"><a href="/"><img src="/logo.png"></a></td>
+            <td>
+                <h1>{{ doc.title }}</h1>
+                <small>
+                {% if doc.desc is defined %}<p>{{ doc.desc }}</p>{% endif %}
+                {% if doc.date is defined %}<i>published {{ doc.date }}</i>{% endif %}
+                </small>
+            </td>
+            </tr>
+        </table>
+        </div>
+
+        <div id="article" class="card">
+        <div class="inner">    
+            {{ doc.html }}
+        </div>
+        </div>
+    </div>
+
+    <div id="footer">
+    <div class="inner">
+        <p>
+        <a href="/">home</a>&nbsp;&CenterDot;
+        <a href="#title">top</a><span class="info">&nbsp;generated at {{ doc.gen_time }}</span>
+        </p>
+    </div>
+    </div>
+</body>
+</html>
