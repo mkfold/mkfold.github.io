@@ -6,80 +6,93 @@ by mia k
 """
 
 import hashlib
-import json
+import csv
 import os
 import shutil
 import time
 from argparse import ArgumentParser
+from collections import namedtuple
 from glob import glob
 from os import path
 
 import jinja2
 import markdown
 
+PageInfo = namedtuple(
+    "PageInfo", ("id_", "hash_", "gtime", "title", "desc", "date")
+)
 
+JINJA_TEMPLATE_PATH = "templates"
 MD_EXTENSIONS = ["extra", "smarty", "meta"]
 
-MANIFEST_PATH = "manifest.json"
-CONTENT_PATH = "content"
-TEMPLATE_PATH = "templates"
-PUBLIC_PATH = "docs"
+DEFAULT_MANIFEST_PATH = "manifest.json"
+DEFAULT_CONTENT_PATH = "content"
+DEFAULT_PUBLIC_PATH = "docs"
 
-jenv = jinja2.Environment(loader=jinja2.FileSystemLoader(TEMPLATE_PATH))
+JENV = jinja2.Environment(loader=jinja2.FileSystemLoader(JINJA_TEMPLATE_PATH))
+JENV.trim_blocks = True
+JENV.lstrip_blocks = True
+PAGE_TEMPLATE = JENV.get_template("post.html")
+TOFC_TEMPLATE = JENV.get_template("toc.html")
+
+DATE_FMT = "%Y-%m-%d"
+TIME_FMT = "%Y-%m-%dT%H:%M:%S"
 
 
-def hash_file(fname):
+def hash_file(f):
     h = hashlib.sha256()
-    with open(fname, "rb") as f:
-        while True:
-            b = f.read(h.block_size)
-            if not b:
-                break
-            h.update(b)
+    while True:
+        b = f.read(h.block_size)
+        if not b:
+            break
+        h.update(b)
+    f.seek(0)
     return h.hexdigest()
 
 
-def gen_pages(docs, html_path, content_path):
-    # dfmt = "%Y-%m-%d"
-    tfmt = "%Y-%m-%d, %H:%M:%S"
+def generate_page(text):
+    gtime = time.strftime(TIME_FMT)
 
-    template = jenv.get_template("post.html")
-    doc_props = {}
-    for id_ in docs:
-        fname = path.join(content_path, f"{id_}.md")
+    md = markdown.Markdown(extensions=MD_EXTENSIONS)
+    body = md.convert(text)
 
-        curtime = time.strftime(tfmt)
-        with open(fname, "r") as f:
-            text = f.read()
+    props = {k: "; ".join(v).strip() for k, v in md.Meta.items()}
+    props = {**props, "gtime": gtime}
 
-        md = markdown.Markdown(extensions=MD_EXTENSIONS)
-        body = md.convert(text)
+    ctx = {"doc": {**props, "html": body}}
+    html = PAGE_TEMPLATE.render(ctx)
 
-        # get metadata using extension
-        props = {k: "; ".join(v) for k, v in md.Meta.items()}
-        props = {**props, "gen_time": curtime}
+    return html, props
 
-        fdir = path.join(html_path, id_)
-        if not path.exists(fdir):
-            os.mkdir(fdir)
 
-        context = {"html": body, **props}
+def generate_toc(page_info):
+    toc = sorted(page_info, key=lambda x: x.date, reverse=True)
+    return TOFC_TEMPLATE.render({"toc": toc} if len(toc) else {})
 
-        if "date" in props:
-            date_str = props.get("date")
-            # ts = time.strptime(date_str, dfmt)
-            # props["date"] = tuple(ts)
-            context["date"] = date_str
 
-        html = template.render({"doc": context})
+def save_page(html, html_path, id_=None):
+    fdir = path.join(html_path, id_) if id_ is not None else html_path
+    outpath = path.join(fdir, "index.html")
 
-        outpath = path.join(fdir, "index.html")
-        with open(outpath, "w") as f:
-            f.write(html)
+    os.makedirs(fdir, exist_ok=True)
+    with open(outpath, "w") as f:
+        f.writelines(x.strip() + "\n" for x in html.split("\n"))
 
-        doc_props[id_] = props
 
-    return doc_props
+def make_pages(docs, html_path, force_update=False):
+    new_props = {}
+    for id_, fname, hash_ in docs:
+        with open(fname, "rb") as f:
+            h = hash_file(f)
+            if not force_update and h == hash_:
+                continue
+            text = f.read().decode("utf-8")
+
+        html, props = generate_page(text)
+        new_props[id_] = PageInfo(id_, h, **props)
+        save_page(html, html_path, id_=id_)
+
+    return new_props
 
 
 def del_pages(keys, html_path):
@@ -90,115 +103,97 @@ def del_pages(keys, html_path):
             print(f'warning: did not find directory "{p}" to delete')
 
 
-def get_toc_data(id_, props):
-    date_str = props["date"]
-    o = {"id": id_, "title": props.get("title", id_), "date": date_str}
-    if "desc" in props:
-        o["desc"] = props["desc"]
-    return o
+def save_manifest(f, manifest):
+    csv.writer(f).writerows(manifest)
 
 
-def gen_toc(doc_props, html_path):
-    template = jenv.get_template("toc.html")
-
-    toc_data = [
-        get_toc_data(id_, props)
-        for id_, props in doc_props.items() if "date" in props
-    ]
-    toc_data = sorted(toc_data, key=lambda x: x["date"], reverse=True)
-    context = {"toc": toc_data} if len(toc_data) != 0 else {}
-
-    html = template.render(context)
-
-    with open(path.join(html_path, "index.html"), "w") as f:
-        f.write(html)
+def load_manifest(f):
+    return [PageInfo(*v) for v in csv.reader(f)]
 
 
-def make(manifest_path, markdown_path, html_path, rebuild=False):
-    print("building site...")
+def make(manifest_path, markdown_path, html_path, rebuild=False, v=False):
+    vprint = print if v else bool  # hehe
 
-    if not path.exists(html_path):
-        os.mkdir(html_path)
+    def pathkey(x):
+        return path.splitext(path.basename(x))[0]
+
+    def keypath(x):
+        return path.join(markdown_path, f"{x}.md")
 
     if path.exists(manifest_path):
-        with open(manifest_path, "r") as f:
-            try:
-                manifest = json.load(f)
-            except Exception as e:
-                print(f"error: failed to load manifest; reason: {e.what()}\n")
-                return
+        with open(manifest_path, "r", newline="") as f:
+            manifest = {x.id_: x for x in load_manifest(f)}
+        vprint(f'{len(manifest)} item(s) in manifest at "{manifest_path}"')
     else:
         print("no manifest found. creating empty manifest.")
         manifest = {}
 
-    manifest_keys = set(manifest)
+    md_files = glob(path.join(markdown_path, "*.md"))
+    html_files = glob(path.join(html_path, "*", "index.html"))
 
-    def dirkey(x):
-        return path.splitext(path.basename(x))[0]
+    mf_keys = set(manifest)
+    md_keys = {pathkey(x) for x in md_files}
+    html_keys = {pathkey(path.split(x)[0]) for x in html_files}
 
-    files = glob(path.join(markdown_path, "*.md"))
-    found_keys = {dirkey(x) for x in files}
-    print(f'found {len(files)} page(s) under "{markdown_path}".')
-
-    new_keys = found_keys - manifest_keys
-    del_keys = manifest_keys - found_keys
-
-    print("computing file hashes...")
-    file_hashes = {dirkey(f): hash_file(f) for f in files}
-    manifest_hashes = {k: v["hash"] for k, v in manifest.items()}
-
-    def stale(k, v):
-        return k in file_hashes and v != file_hashes[k]
-
-    def needs_update(k, v):
-        return k not in del_keys and stale(k, v) or rebuild
-
-    upd_keys = {k for k, v in manifest_hashes.items() if needs_update(k, v)}
-
-    print(
-        f"{len(new_keys)} new; "
-        f"{len(upd_keys)} to update; "
-        f"{len(del_keys)} to delete."
+    vprint(
+        f'{len(md_keys)} md files(s) under "{markdown_path}".\n'
+        f'{len(html_keys)} html files(s) under "{html_path}".'
     )
 
-    do_delete = len(del_keys) != 0
-    do_update = len(new_keys) + len(upd_keys) != 0
+    matched_k = mf_keys & html_keys  # matched: has mf entry and html
+    del_k = mf_keys - md_keys        # deleted: any mf entry not in md dir
+    new_k = md_keys - matched_k      # new: any in md dir not in "matched"
+    upd_k = md_keys & matched_k      # updated: any in md dir with match
 
+    if len(missing := (mf_keys - html_keys)):
+        print(f"warning: {len(missing)} page(s) in manifest with no HTML.")
+
+    do_delete = len(del_k) != 0
     if do_delete:
-        print(f"deleting {len(del_keys)} pages.")
-        del_pages(del_keys, html_path)
+        deleted = del_k & html_keys
+        print(
+            f"deleting {len(deleted)} page(s); "
+            f"dropping {len(del_k - html_keys)} item(s) from manifest."
+        )
+        del_pages(deleted, html_path)
 
-    if do_update:
-        print("generating pages...")
-        gen_keys = new_keys | upd_keys - del_keys
-        upd_props = gen_pages(gen_keys, html_path, markdown_path)
-    else:
-        upd_props = {}
+    os.makedirs(html_path, exist_ok=True)
 
-    if do_delete or do_update:
-        doc_props = {
-            **{k: v for k, v in manifest.items() if k not in del_keys},
-            **{k: {"hash": file_hashes[k], **v} for k, v in upd_props.items()},
+    upd_data = {}
+    if len(new_k):
+        print(f"found {len(new_k)} new pages; generating...")
+        new = [(k, keypath(k), None) for k in new_k]
+        upd_data |= make_pages(new, html_path)
+
+    if len(upd_k):
+        print(f"{len(upd_k)} existing page(s); checking for updates...")
+        updates = [(k, keypath(k), manifest[k].hash_) for k in upd_k]
+        upd_data |= make_pages(updates, html_path, force_update=rebuild)
+
+    if do_delete or len(upd_data):
+        manifest = {
+            **{k: v for k, v in manifest.items() if k not in del_k},
+            **{k: v for k, v in upd_data.items()},
         }
-        toc_props = {k: v for k, v in doc_props.items() if "date" in v}
-        print(f"generating table of contents for {len(toc_props)} articles...")
-        gen_toc(toc_props, html_path)
+        toc_data = [x for x in manifest.values() if x.date is not None]
+
+        print(f"generating table of contents for {len(toc_data)} articles...")
+        toc_html = generate_toc(toc_data)
+        save_page(toc_html, html_path)
 
         print("writing updated manifest.")
-        with open(manifest_path, "w") as f:
-            json.dump(doc_props, f)
+        with open(manifest_path, "w", newline="") as f:
+            save_manifest(f, manifest.values())
 
     print("done.")
 
 
 if __name__ == "__main__":
     p = ArgumentParser()
-    p.add_argument("--markdown-path", type=str, default=CONTENT_PATH)
-    p.add_argument("--html-path", type=str, default=PUBLIC_PATH)
-    p.add_argument("--manifest-path", type=str, default=MANIFEST_PATH)
-
+    p.add_argument("--manifest-path", type=str, default=DEFAULT_MANIFEST_PATH)
+    p.add_argument("--markdown-path", type=str, default=DEFAULT_CONTENT_PATH)
+    p.add_argument("--html-path", type=str, default=DEFAULT_PUBLIC_PATH)
     p.add_argument("--rebuild", action="store_true")
+    p.add_argument("-v", action="store_true")
 
-    args = p.parse_args()
-
-    make(args.manifest_path, args.markdown_path, args.html_path, args.rebuild)
+    make(**vars(p.parse_args()))
