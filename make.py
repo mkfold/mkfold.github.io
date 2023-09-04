@@ -18,34 +18,14 @@ import jinja2
 import markdown
 
 
-CONFIG_PATH = "config.json"
-MANIFEST_PATH = "manifest.json"
+MD_EXTENSIONS = ["extra", "smarty", "meta"]
 
+MANIFEST_PATH = "manifest.json"
 CONTENT_PATH = "content"
 TEMPLATE_PATH = "templates"
 PUBLIC_PATH = "docs"
 
 jenv = jinja2.Environment(loader=jinja2.FileSystemLoader(TEMPLATE_PATH))
-
-
-if path.exists(CONFIG_PATH):
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        cfg = json.load(f)
-
-        PUBLIC_PATH = cfg.get("PUBLIC_PATH", PUBLIC_PATH)
-        TEMPLATE_PATH = cfg.get("TEMPLATE_PATH", TEMPLATE_PATH)
-        CONTENT_PATH = cfg.get("CONTENT_PATH", CONTENT_PATH)
-
-
-def get_args():
-    p = ArgumentParser()
-    p.add_argument("--markdown-path", type=str, default=CONTENT_PATH)
-    p.add_argument("--html-path", type=str, default=PUBLIC_PATH)
-    p.add_argument("--manifest-path", type=str, default=MANIFEST_PATH)
-
-    p.add_argument("--rebuild", action="store_true")
-
-    return p.parse_args()
 
 
 def hash_file(fname):
@@ -59,49 +39,25 @@ def hash_file(fname):
     return h.hexdigest()
 
 
-def iter_lines(text):
-    i = prev = 0
-    while i < len(text):
-        while i < len(text) and text[i] != "\n":
-            i += 1
-        yield text[prev:i]
-        i += 1
-        prev = i
-
-
-def gen_pages(docs, html_path):
+def gen_pages(docs, html_path, content_path):
     # dfmt = "%Y-%m-%d"
     tfmt = "%Y-%m-%d, %H:%M:%S"
 
     template = jenv.get_template("post.html")
     doc_props = {}
     for id_ in docs:
-        fname = path.join(CONTENT_PATH, f"{id_}.md")
+        fname = path.join(content_path, f"{id_}.md")
 
         curtime = time.strftime(tfmt)
         with open(fname, "r") as f:
             text = f.read()
 
-        # extract properties in header
-        props = {}
-        skipline = 0
-        for line in iter_lines(text):
-            if not line.startswith("%"):
-                break
-            pk, pv = line.split(":", 1)
-            pk, pv = pk[1:].strip(), pv.strip()
-            props[pk] = pv
-            skipline += 1
+        md = markdown.Markdown(extensions=MD_EXTENSIONS)
+        body = md.convert(text)
 
+        # get metadata using extension
+        props = {k: "; ".join(v) for k, v in md.Meta.items()}
         props = {**props, "gen_time": curtime}
-
-        for i, c in enumerate(text):
-            if skipline == 0:
-                break
-            if c == "\n":
-                skipline -= 1
-
-        body = markdown.markdown(text[i:], extensions=["fenced_code"])
 
         fdir = path.join(html_path, id_)
         if not path.exists(fdir):
@@ -111,8 +67,8 @@ def gen_pages(docs, html_path):
 
         if "date" in props:
             date_str = props.get("date")
-            # props["date"] = time.strptime(date_str, dfmt)
-            # context["date"] = time.strftime(dfmt, props["date"])
+            # ts = time.strptime(date_str, dfmt)
+            # props["date"] = tuple(ts)
             context["date"] = date_str
 
         html = template.render({"doc": context})
@@ -120,8 +76,6 @@ def gen_pages(docs, html_path):
         outpath = path.join(fdir, "index.html")
         with open(outpath, "w") as f:
             f.write(html)
-
-        print("-", fdir)
 
         doc_props[id_] = props
 
@@ -136,9 +90,7 @@ def del_pages(keys, html_path):
             print(f'warning: did not find directory "{p}" to delete')
 
 
-def props_to_toc_data(id_, props):
-    # tfmt = "%Y-%m-%d"
-    # date_str = time.strftime(tfmt, time.struct_time(props["date"]))
+def get_toc_data(id_, props):
     date_str = props["date"]
     o = {"id": id_, "title": props.get("title", id_), "date": date_str}
     if "desc" in props:
@@ -150,9 +102,8 @@ def gen_toc(doc_props, html_path):
     template = jenv.get_template("toc.html")
 
     toc_data = [
-        props_to_toc_data(id_, props)
-        for id_, props in doc_props.items()
-        if "date" in props
+        get_toc_data(id_, props)
+        for id_, props in doc_props.items() if "date" in props
     ]
     toc_data = sorted(toc_data, key=lambda x: x["date"], reverse=True)
     context = {"toc": toc_data} if len(toc_data) != 0 else {}
@@ -163,7 +114,7 @@ def gen_toc(doc_props, html_path):
         f.write(html)
 
 
-def main(manifest_path, markdown_path, html_path, rebuild=False):
+def make(manifest_path, markdown_path, html_path, rebuild=False):
     print("building site...")
 
     if not path.exists(html_path):
@@ -174,11 +125,8 @@ def main(manifest_path, markdown_path, html_path, rebuild=False):
             try:
                 manifest = json.load(f)
             except Exception as e:
-                print(
-                    f"error: failed to load manifest; reason: {e.what()}\n"
-                    "starting with fresh manifest..."
-                )
-                manifest = {}
+                print(f"error: failed to load manifest; reason: {e.what()}\n")
+                return
     else:
         print("no manifest found. creating empty manifest.")
         manifest = {}
@@ -189,14 +137,13 @@ def main(manifest_path, markdown_path, html_path, rebuild=False):
         return path.splitext(path.basename(x))[0]
 
     files = glob(path.join(markdown_path, "*.md"))
-    # found_files = {dirkey(x): {"path": x} for x in files}
     found_keys = {dirkey(x) for x in files}
-
     print(f'found {len(files)} page(s) under "{markdown_path}".')
 
     new_keys = found_keys - manifest_keys
     del_keys = manifest_keys - found_keys
 
+    print("computing file hashes...")
     file_hashes = {dirkey(f): hash_file(f) for f in files}
     manifest_hashes = {k: v["hash"] for k, v in manifest.items()}
 
@@ -223,7 +170,8 @@ def main(manifest_path, markdown_path, html_path, rebuild=False):
 
     if do_update:
         print("generating pages...")
-        upd_props = gen_pages(new_keys | upd_keys, html_path)
+        gen_keys = new_keys | upd_keys - del_keys
+        upd_props = gen_pages(gen_keys, html_path, markdown_path)
     else:
         upd_props = {}
 
@@ -238,11 +186,19 @@ def main(manifest_path, markdown_path, html_path, rebuild=False):
 
         print("writing updated manifest.")
         with open(manifest_path, "w") as f:
-            json.dump(doc_props, f, indent=2)
+            json.dump(doc_props, f)
 
     print("done.")
 
 
 if __name__ == "__main__":
-    args = get_args()
-    main(args.manifest_path, args.markdown_path, args.html_path, args.rebuild)
+    p = ArgumentParser()
+    p.add_argument("--markdown-path", type=str, default=CONTENT_PATH)
+    p.add_argument("--html-path", type=str, default=PUBLIC_PATH)
+    p.add_argument("--manifest-path", type=str, default=MANIFEST_PATH)
+
+    p.add_argument("--rebuild", action="store_true")
+
+    args = p.parse_args()
+
+    make(args.manifest_path, args.markdown_path, args.html_path, args.rebuild)

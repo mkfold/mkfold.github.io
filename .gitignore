@@ -1,0 +1,6 @@
+testing_dir
+manifest.json
+
+__pycache__
+
+*.pyc
