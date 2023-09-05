@@ -10,7 +10,6 @@ import csv
 import os
 import shutil
 import time
-from argparse import ArgumentParser
 from collections import namedtuple
 from glob import glob
 from os import path
@@ -25,8 +24,8 @@ PageInfo = namedtuple(
 JINJA_TEMPLATE_PATH = "templates"
 MD_EXTENSIONS = ["extra", "smarty", "meta"]
 
-DEFAULT_MANIFEST_PATH = "manifest.json"
-DEFAULT_CONTENT_PATH = "content"
+DEFAULT_MANIFEST_PATH = "manifest"
+DEFAULT_CONTENT_PATH = "src"
 DEFAULT_PUBLIC_PATH = "docs"
 
 JENV = jinja2.Environment(loader=jinja2.FileSystemLoader(JINJA_TEMPLATE_PATH))
@@ -36,7 +35,7 @@ PAGE_TEMPLATE = JENV.get_template("post.html")
 TOFC_TEMPLATE = JENV.get_template("toc.html")
 
 DATE_FMT = "%Y-%m-%d"
-TIME_FMT = "%Y-%m-%dT%H:%M:%S"
+TIME_FMT = DATE_FMT + "T%H:%M:%S"
 
 
 def hash_file(f):
@@ -57,7 +56,7 @@ def generate_page(text):
     body = md.convert(text)
 
     props = {k: "; ".join(v).strip() for k, v in md.Meta.items()}
-    props = {**props, "gtime": gtime}
+    props = {"date": None, "gtime": gtime, **props}
 
     ctx = {"doc": {**props, "html": body}}
     html = PAGE_TEMPLATE.render(ctx)
@@ -76,7 +75,7 @@ def save_page(html, html_path, id_=None):
 
     os.makedirs(fdir, exist_ok=True)
     with open(outpath, "w") as f:
-        f.writelines(x.strip() + "\n" for x in html.split("\n"))
+        f.write(html)
 
 
 def make_pages(docs, html_path, force_update=False):
@@ -111,89 +110,88 @@ def load_manifest(f):
     return [PageInfo(*v) for v in csv.reader(f)]
 
 
-def make(manifest_path, markdown_path, html_path, rebuild=False, v=False):
-    vprint = print if v else bool  # hehe
+def make(manifest_path, md_path, html_path, force_update=False, verbose=False):
+    vprint = print if verbose else bool  # hehe
 
-    def pathkey(x):
+    def path2id(x):
         return path.splitext(path.basename(x))[0]
 
-    def keypath(x):
-        return path.join(markdown_path, f"{x}.md")
+    def id2path(x):
+        return path.join(md_path, f"{x}.md")
 
     if path.exists(manifest_path):
         with open(manifest_path, "r", newline="") as f:
-            manifest = {x.id_: x for x in load_manifest(f)}
-        vprint(f'{len(manifest)} item(s) in manifest at "{manifest_path}"')
+            manif = {x.id_: x for x in load_manifest(f)}
+        vprint(f'{len(manif)} pages(s) in "{manifest_path}"')
     else:
-        print("no manifest found. creating empty manifest.")
-        manifest = {}
+        print("warning: no manifest found. creating empty manifest")
+        manif = {}
 
-    md_files = glob(path.join(markdown_path, "*.md"))
+    md_files = glob(path.join(md_path, "*.md"))
     html_files = glob(path.join(html_path, "*", "index.html"))
 
-    mf_keys = set(manifest)
-    md_keys = {pathkey(x) for x in md_files}
-    html_keys = {pathkey(path.split(x)[0]) for x in html_files}
+    mf_ids = set(manif)
+    md_ids = {path2id(x) for x in md_files}
+    html_ids = {path2id(path.split(x)[0]) for x in html_files}
 
     vprint(
-        f'{len(md_keys)} md files(s) under "{markdown_path}".\n'
-        f'{len(html_keys)} html files(s) under "{html_path}".'
+        f'{len(md_ids)} md files(s) in "{md_path}"\n'
+        f'{len(html_ids)} html files(s) in "{html_path}"'
     )
 
-    matched_k = mf_keys & html_keys  # matched: has mf entry and html
-    del_k = mf_keys - md_keys        # deleted: any mf entry not in md dir
-    new_k = md_keys - matched_k      # new: any in md dir not in "matched"
-    upd_k = md_keys & matched_k      # updated: any in md dir with match
+    matched_i = mf_ids & html_ids  # matched: has mf entry and html
+    del_i = mf_ids - md_ids        # deleted: any mf entry not in md dir
+    new_i = md_ids - matched_i     # new: any in md dir not in "matched"
+    upd_i = md_ids & matched_i     # updated: any in md dir with match
 
-    if len(missing := (mf_keys - html_keys)):
-        print(f"warning: {len(missing)} page(s) in manifest with no HTML.")
-
-    do_delete = len(del_k) != 0
-    if do_delete:
-        deleted = del_k & html_keys
-        print(
-            f"deleting {len(deleted)} page(s); "
-            f"dropping {len(del_k - html_keys)} item(s) from manifest."
-        )
-        del_pages(deleted, html_path)
+    if len(missing := mf_ids - html_ids):
+        print(f"warning: {len(missing)} page(s) in manifest with no html")
 
     os.makedirs(html_path, exist_ok=True)
 
-    upd_data = {}
-    if len(new_k):
-        print(f"found {len(new_k)} new pages; generating...")
-        new = [(k, keypath(k), None) for k in new_k]
-        upd_data |= make_pages(new, html_path)
+    new_data = (
+        make_pages(x, html_path)
+        if len(x := [(k, id2path(k), None) for k in new_i]) else {}
+    )
+    print(f":: {len(new_data)} new page(s) generated")
 
-    if len(upd_k):
-        print(f"{len(upd_k)} existing page(s); checking for updates...")
-        updates = [(k, keypath(k), manifest[k].hash_) for k in upd_k]
-        upd_data |= make_pages(updates, html_path, force_update=rebuild)
+    upd_data = (
+        make_pages(x, html_path, force_update)
+        if len(x := [(k, id2path(k), manif[k].hash_) for k in upd_i]) else {}
+    )
+    print(f":: {len(upd_data)} page(s) updated")
 
-    if do_delete or len(upd_data):
-        manifest = {
-            **{k: v for k, v in manifest.items() if k not in del_k},
-            **{k: v for k, v in upd_data.items()},
-        }
-        toc_data = [x for x in manifest.values() if x.date is not None]
+    if len(deleted := del_i & html_ids):
+        del_pages(deleted, html_path)
+        print(f":: {len(deleted)} page(s) deleted from disk")
 
-        print(f"generating table of contents for {len(toc_data)} articles...")
+    upd_data |= new_data
+    if force_update or len(del_i) or len(upd_data):
+        manif = {k: x for k, x in manif.items() if k not in del_i}
+        manif |= upd_data
+        toc_data = [x for x in manif.values() if x.date is not None]
+
+        if len(del_i):
+            print(f":: {len(del_i)} page(s) dropped from manifest")
+
         toc_html = generate_toc(toc_data)
         save_page(toc_html, html_path)
+        print(f":: index with {len(toc_data)} post(s) generated")
 
-        print("writing updated manifest.")
         with open(manifest_path, "w", newline="") as f:
-            save_manifest(f, manifest.values())
+            save_manifest(f, manif.values())
+        print(":: updated manifest")
 
-    print("done.")
+    print("done")
 
 
 if __name__ == "__main__":
+    from argparse import ArgumentParser
     p = ArgumentParser()
     p.add_argument("--manifest-path", type=str, default=DEFAULT_MANIFEST_PATH)
-    p.add_argument("--markdown-path", type=str, default=DEFAULT_CONTENT_PATH)
+    p.add_argument("--md-path", type=str, default=DEFAULT_CONTENT_PATH)
     p.add_argument("--html-path", type=str, default=DEFAULT_PUBLIC_PATH)
-    p.add_argument("--rebuild", action="store_true")
-    p.add_argument("-v", action="store_true")
+    p.add_argument("--force-update", "-f", action="store_true")
+    p.add_argument("--verbose", "-v", action="store_true")
 
     make(**vars(p.parse_args()))

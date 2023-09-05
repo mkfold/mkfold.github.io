@@ -1,8 +1,7 @@
 body {
     color: #1E2022;
     background-color: #F0F5F9;
-    font-family: "IBM Plex Mono", monospace, sans-serif;
-    font-size: 0.80rem;
+    font-family: 'Droid Mono', 'Monaco', 'Consolas', 'Courier New', Courier, monospace;
     margin: 0 auto;
     padding: 0;
 }
@@ -18,7 +17,6 @@ a:hover {
 
 pre {
     background-color: #C9D6DF;
-    font-family: "IBM Plex Mono";
     padding: 0.8rem 1rem;
 }
 
@@ -32,7 +30,6 @@ code {
     background-color: #C9D6DF;
     padding: 2px;
     border-radius: 4px;
-    font-family: "IBM Plex Mono";
 }
 
 #header {
@@ -117,23 +114,24 @@ td {
     width: 100%;
 }
 
-.article-ref .title {
+.aref .title {
     vertical-align: middle;
     padding-left: 8px;
 }
 
-.article-ref .date {
-    vertical-align: middle;
+.aref .date {
+    vertical-align: top;
     font-size: small;
+    min-width: 5.55rem;
     /* width: 0; 
     padding-right: 0rem; */
 }
 
 #footer {
     font-size: x-small;
-    max-width: 720px;
     margin: 1rem auto;
-    padding: 0rem 1rem 1rem 1rem;
+    /* padding: 0rem 1rem 1rem 1rem;
+    max-width: 720px; */
 }
 
 #footer .inner { 
