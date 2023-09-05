@@ -5,33 +5,34 @@
 <link rel="stylesheet" href="/styles.css">
 <script src="/dark.js"></script>
 <meta name="robots" content="noindex, nofollow" />
+<meta name="viewport" content="width=device-width, initial-scale=0.8, maximum-scale=1, user-scalable=0" />
 </head>
 <body>
-    <div id="content">
-        <div id="title" class="card">
-        <table class="inner">
-            <tr>
-            <td class="image"><a href="/"><img src="/logo.png"></a></td>
-            <td>
-                <h1>kfold.net</h1>
-                <small>
-                <p>website of Mia K, AI/ML hacker.</p>
-                <a href="/about">about</a>.
-                <a href="/links">links</a>.
-                </small>
-            </td>
-            </tr>
-        </table>
-        </div>
-        <div id="toc" class="card">
-        <table class="inner">
-        {% for item in toc -%}
-            <tr class="aref"><td class="date">{{ item.date }}</td><td class="title"><a href="/{{ item.id_ }}">{{ item.title }}</a>
-            {%- if item.desc is defined and item != None %} - <span class="desc">{{ item.desc }}</span>{% endif -%}
-        </td></tr>
-        {% endfor %}
-        </table>
-        </div>
-    </div>
+<div id="top" class="card">
+<div id="header" class="header">
+<table>
+    <tr>
+    <td class="logo"><a href="/"><img src="/logo.png"></a></td>
+    <td>
+    <h1>kfold.net</h1>
+    <small>
+    <p>website of Mia K, AI/ML hacker.</p>
+    <a href="/about">about</a>.
+    <a href="/links">links</a>.
+    </small>
+    </td>
+    </tr>
+</table>
+</div>
+<div id="body" class="toc">
+<table>
+    {% for item in toc -%}
+        <tr class="aref"><td class="date">{{ item.date }}</td><td><a href="/{{ item.id_ }}" class="name">{{ item.title }}</a>
+        {%- if item.desc is defined and item != None %} - <span class="desc">{{ item.desc }}</span>{% endif -%}
+    </td></tr>
+    {% endfor %}
+</table>
+</div>
+</div>
 </body>
 </html>

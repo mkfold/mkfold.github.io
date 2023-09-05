@@ -4,164 +4,133 @@ body {
     font-family: 'Droid Mono', 'Monaco', 'Consolas', 'Courier New', Courier, monospace;
     margin: 0 auto;
     padding: 0;
+    font-size: 0.8rem;
 }
 
 a {
-    color: #52616B;
+    color: #63748d;
     text-decoration: none;
 }
-
 a:hover {
     text-decoration: underline;
 }
 
-pre {
-    background-color: #C9D6DF;
-    padding: 0.8rem 1rem;
-}
-
-pre code {
-    padding: initial;
-    border-radius: initial;
-}
-
-code {
-    line-height: 0;
-    background-color: #C9D6DF;
-    padding: 2px;
-    border-radius: 4px;
-}
-
-#header {
-    margin: 1rem auto;
-    max-width: 720px;
-    text-align: center;
-    background-color: #F0F5F9;
-    border: solid 1px #52616B;
-    border-radius: 8px;
-    padding: 1rem 0rem;
-}
-
-#header .inner {
-    padding: 0 1rem;
-}
-
-/* table-related rules */
-#title tr {
-    vertical-align: middle;
-}
-
-td {
-    padding: 0;
-}
-
-#title td.image {
-    padding: 0 1rem 0 0;
-}
-
-#title td.image img {
-    height: 72px;
-}
-
 /* page content container rules */
-#content {
-    margin: 1rem auto;
-    max-width: 720px;
-}
-
-#content #title p,
-#content #title h1,
-#content #title h2,
-#content #title h3,
-#content #title h4,
-#content #title h5,
-#content #title h6 {
-    margin-top: 0;
-    margin-bottom: 0;
+#top {
+    margin: 0 auto 1rem auto;
+    max-width: 640px;
 }
 
 .card {
     background-color: #F0F5F9;
-    border: solid 1px #52616B;
+    border-color: #52616B;
+    border-radius: 8px;
 }
-
-/* card title */
-#title {
-    border-bottom: none;
-    border-radius: 8px 8px 0 0;
+.card pre {
+    background-color: #C9D6DF;
+    padding: 0.8rem 1rem;
+    margin: 0 -1rem 1rem -1rem;
+    overflow: auto;
+}
+.card code {
+    background-color: #C9D6DF;
+    padding: 2px;
+    border-radius: 4px;
+}
+.card pre code {
+    padding: initial;
+    border-radius: initial;
+}
+.card #header {
+    border-left: solid 1px;
+    border-right: solid 1px;
+    border-radius: 0;
     padding: 1rem;
 }
-
-/* card body */
-#article {
+.card #header p,
+.card #header h1,
+.card #header h2,
+.card #header h3,
+.card #header h4,
+.card #header h5,
+.card #header h6 {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+.card #header tr {
+    vertical-align: middle;
+}
+.card #header td {
+    padding: 0;
+}
+.card #header td.logo {
+    padding: 0 1rem 0 0;
+}
+.card #header td.logo img {
+    width: 72px;
+}
+.card #body {
+    border: solid 1px;
     border-top: dotted 1px;
     border-radius: 0 0 8px 8px;
     padding: 0 1rem;
 }
-
-#article .inner {
-    line-height: 1.5rem;
+.card #body p {
+    line-height: 1.33rem;
 }
-
-#toc {
-    border-top: dotted 1px;
-    border-radius: 0 0 8px 8px;
-    padding: 0.5rem 1rem;
+.card #body.toc {
+    padding: 1rem;
 }
-
-#toc .inner {
-    line-height: 1.5rem;
-    width: 100%;
-}
-
-.aref .title {
-    vertical-align: middle;
-    padding-left: 8px;
-}
-
-.aref .date {
+.card #body.toc td {
+    padding: 0;
     vertical-align: top;
-    font-size: small;
-    min-width: 5.55rem;
-    /* width: 0; 
-    padding-right: 0rem; */
 }
-
-#footer {
+.card #body.toc td.date {
+    width: 72px;
+    padding: 0 1rem 0 0;
+}
+.card #footer {
+    border: none;
     font-size: x-small;
     margin: 1rem auto;
-    /* padding: 0rem 1rem 1rem 1rem;
-    max-width: 720px; */
-}
-
-#footer .inner { 
     padding: 0 1rem;
 }
-
-#footer .info {
+.card #footer .info {
     float: right;
-    color: rgba(0, 0, 0, 0);
+    opacity: 0;
+}
+.card #footer .info:hover {
+    opacity: inherit;
 }
 
-#footer .info:hover {
-    color: inherit;
+/* screen size overrides */
+@media screen and (max-width: 640px) {
+  .card #body, .card #header {
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+  }
 }
 
 /* dark mode overrides */
-
 #dark-button {
-    font-size: 1rem;
-    position: fixed;
-    bottom: 16px;
-    right: 16px;
-}
+    font-size: x-small;
+    opacity: 0%;
+    float: right;
 
-.darken {
+}
+#dark-button:hover {
+    opacity: 100%;
+}
+.dark {
     color: #F0F5F9;
     background-color: #0f1117;
 }
-
-code.darken, pre.darken {
+.dark code, .dark pre {
     color: #C9D6DF;
     background-color: #1E2022;
+}
+.dark .card #header td.logo img {
+    -webkit-filter: invert();
+    filter: invert();
 }

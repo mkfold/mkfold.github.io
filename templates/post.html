@@ -5,13 +5,14 @@
 <link rel="stylesheet" href="/styles.css">
 <script src="/dark.js"></script>
 <meta name="robots" content="noindex, nofollow" />
+<meta name="viewport" content="width=device-width, initial-scale=0.8, maximum-scale=1, user-scalable=0" />
 </head>
 <body>
-<div id="content">
-<div id="title" class="card">
-<table class="inner">
+<div id="top" class="card">
+<div id="header">
+<table>
     <tr>
-    <td class="image"><a href="/"><img src="/logo.png"></a></td>
+    <td class="logo"><a href="/"><img src="/logo.png"></a></td>
     <td>
         <h1>{{ doc.title }}</h1>
         <small>
@@ -27,19 +28,13 @@
 </table>
 </div>
 
-<div id="article" class="card">
-<div class="inner">    
+<div id="body">
     {{ doc.html }}
-</div>
 </div>
 
 <div id="footer">
-<div class="inner">
-    <p>
     <a href="/">home</a>&nbsp;&CenterDot;
-    <a href="#title">top</a><span class="info">&nbsp;generated at {{ doc.gtime }}</span>
-    </p>
-</div>
+    <a href="#top">top</a><span class="info">&nbsp;generated at {{ doc.gtime }}</span>
 </div>
 </div>
 </body>
