@@ -30,14 +30,23 @@ jobs:
         uses: actions/setup-python@v4.7.0
         with:
           python-version: 3.11
-      - name: Install Python dependencies
-        run: pip install jinja2 markdown
+          cache: pip
+      - name: Install dependences
+        run: pip install -r requirements.txt
+      - name: Cache build artifacts
+        uses: actions/cache@v3
+        with:
+          path: |
+            manifest
+            docs
+          key: kfold-manifest-${{ github.run_id }}
+          restore-keys: kfold-manifest-
       - name: Build site
         run: python make.py -c
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v2
         with:
-          path: "docs"
+          path: docs
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v2
