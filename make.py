@@ -18,7 +18,9 @@ import jinja2
 import markdown
 
 PageInfo = namedtuple(
-    "PageInfo", ("id_", "hash_", "gtime", "title", "desc", "date")
+    "PageInfo",
+    ("id_", "hash_", "gtime", "title", "desc", "date"),
+    defaults=[None] * 2,
 )
 
 JINJA_TEMPLATE_PATH = "templates"
@@ -31,8 +33,8 @@ DEFAULT_PUBLIC_PATH = "docs"
 JENV = jinja2.Environment(loader=jinja2.FileSystemLoader(JINJA_TEMPLATE_PATH))
 JENV.trim_blocks = True
 JENV.lstrip_blocks = True
-PAGE_TEMPLATE = JENV.get_template("post.html")
-TOFC_TEMPLATE = JENV.get_template("toc.html")
+PAGE_TMPL = JENV.get_template("post.html")
+TOFC_TMPL = JENV.get_template("tofc.html")
 
 DATE_FMT = "%Y-%m-%d"
 TIME_FMT = DATE_FMT + "T%H:%M:%S"
@@ -49,24 +51,17 @@ def hash_file(f):
     return h.hexdigest()
 
 
-def generate_page(text):
-    gtime = time.strftime(TIME_FMT)
-
+def process_md(text):
     md = markdown.Markdown(extensions=MD_EXTENSIONS)
-    body = md.convert(text)
+    html = md.convert(text)
 
-    props = {k: "; ".join(v).strip() for k, v in md.Meta.items()}
-    props = {"date": None, "gtime": gtime, **props}
+    def parse_meta_str(x):
+        x = markdown.markdown(x)
+        return x.removeprefix("<p>").removesuffix("</p>")
 
-    ctx = {"doc": {**props, "html": body}}
-    html = PAGE_TEMPLATE.render(ctx)
-
-    return html, props
-
-
-def generate_toc(page_info):
-    toc = sorted(page_info, key=lambda x: x.date, reverse=True)
-    return TOFC_TEMPLATE.render({"toc": toc} if len(toc) else {})
+    meta = {k: [parse_meta_str(x) for x in v] for k, v in md.Meta.items()}
+    meta = {k: v[0] if len(v) == 1 else v for k, v in meta.items()}
+    return html, meta
 
 
 def save_html(html, html_path):
@@ -77,31 +72,45 @@ def save_html(html, html_path):
 
 
 def copy_extra_files(md_path, html_path):
-    src_paths = [
+    srcs = [
         x for x in glob(path.join(md_path, "*"))
         if not x.endswith("index.md") and not path.isdir(x)
     ]
-    dst_paths = [
-        path.join(html_path, x.removeprefix(md_path)[1:]) for x in src_paths
-    ]
-    for src, dst in zip(src_paths, dst_paths):
+    dsts = [path.join(html_path, x.removeprefix(md_path)[1:]) for x in srcs]
+    for src, dst in zip(srcs, dsts):
         shutil.copyfile(src, dst)
 
 
-def make_pages(docs, html_path, force_update=False):
+def make_tofc(page_infos, site_info, html_path):
+    tofc_infos = [x for x in page_infos if x.date is not None]
+    tofc = sorted(tofc_infos, key=lambda x: x.date, reverse=True)
+    html = TOFC_TMPL.render(
+        {"site": {**site_info, "gtime": time.strftime(TIME_FMT)}, "tofc": tofc}
+    )
+    save_html(html, html_path)
+    return len(tofc_infos)
+
+
+def make_pages(docs, site_info, html_path):
+    fields = PageInfo._fields[2:]  # data expected from page generation output
     new_props = {}
     for id_, fname, hash_ in docs:
         with open(fname, "rb") as f:
-            h = hash_file(f)
-            if not force_update and h == hash_:
+            if (h := hash_file(f)) == hash_:
                 continue
             text = f.read().decode("utf-8")
 
-        html, props = generate_page(text)
-        new_props[id_] = PageInfo(id_, h, **props)
+        gtime = time.strftime(TIME_FMT)
+        html, meta = process_md(text)
+        meta = {"title": id_, **meta, "gtime": gtime}
 
-        dst_path = path.join(html_path, id_)
-        save_html(html, dst_path)
+        doc = {**meta, "html": html}
+        html = PAGE_TMPL.render({"site": site_info, "doc": doc})
+        save_html(html, path.join(html_path, id_))
+
+        meta = {k: v for k, v in meta.items() if k in fields}
+        new_props[id_] = PageInfo(id_, h, **meta)
+
     return new_props
 
 
@@ -113,12 +122,24 @@ def del_pages(ids, html_path):
             print(f'warning: did not find directory "{p}" to delete')
 
 
-def save_manifest(f, manifest):
-    csv.writer(f).writerows(manifest)
+def load_root_md(info_md_path):
+    with open(info_md_path, "rb") as f:
+        hash_ = hash_file(f)
+        info_md = f.read().decode("utf-8")
+    html, site_meta = process_md(info_md)
+    site_meta["html"] = html
+    return site_meta, hash_
 
 
-def load_manifest(f):
-    return [PageInfo(*v) for v in csv.reader(f)]
+def save_manifest(f, info_digest, page_infos):
+    csv.writer(f).writerows([info_digest] + page_infos)
+
+
+def load_manifest(manifest_path):
+    with open(manifest_path, "r", newline="") as f:
+        info_digest = tuple(f.readline().strip().rsplit(",", 2))
+        post_infos = [PageInfo(*v) for v in csv.reader(f)]
+    return info_digest, post_infos
 
 
 def make(manifest_path, md_path, html_path, copy_extras=False, force=False):
@@ -132,13 +153,27 @@ def make(manifest_path, md_path, html_path, copy_extras=False, force=False):
     def id2path(x):
         return path.join(md_path, x, "index.md")
 
-    if path.exists(manifest_path):
-        with open(manifest_path, "r", newline="") as f:
-            manif = {x.id_: x for x in load_manifest(f)}
+    assert path.exists(info_md_path := path.join(md_path, "index.md")), \
+        "error: root index.md file not found"
+
+    site_info, info_hash = load_root_md(info_md_path)
+
+    manif = {}
+    info_updated = False
+    if not force and path.exists(manifest_path):
+        manif_header, manif_infos = load_manifest(manifest_path)
+        manif |= {x.id_: x for x in manif_infos}
         print(f"loaded manifest with {len(manif)} post(s)")
+
+        _, prev_info_hash = manif_header
+        if (info_updated := prev_info_hash != info_hash):
+            print("warning: global site info changed. forcing full rebuild.")
+            force = True
     else:
-        print("warning: no manifest found. creating empty manifest")
-        manif = {}
+        print(
+            "warning: no manifest found or full rebuild forced; "
+            "starting with empty manifest."
+        )
 
     md_files = glob(path.join(md_path, "*", "index.md"))
     html_files = glob(path.join(html_path, "*", "index.html"))
@@ -149,8 +184,8 @@ def make(manifest_path, md_path, html_path, copy_extras=False, force=False):
 
     matched_i = mf_ids & html_ids  # matched: has mf entry and html
     del_i = mf_ids - md_ids        # deleted: any mf entry not in md dir
-    new_i = md_ids - matched_i     # new: any in md dir not in "matched"
-    upd_i = md_ids & matched_i     # updated: any in md dir with match
+    new_i = md_ids if force else md_ids - matched_i  # new: any "unmatched" md
+    upd_i = set() if force else md_ids & matched_i   # updated: any md w/ match
 
     if len(missing := mf_ids - html_ids):
         print(f"warning: {len(missing)} page(s) in manifest with no html")
@@ -158,36 +193,36 @@ def make(manifest_path, md_path, html_path, copy_extras=False, force=False):
     os.makedirs(html_path, exist_ok=True)
 
     new_data = (
-        make_pages(x, html_path)
+        make_pages(x, site_info, html_path)
         if len(x := [(k, id2path(k), None) for k in new_i]) else {}
     )
     print(f":: {len(new_data)} new page(s) generated")
 
     upd_data = (
-        make_pages(x, html_path, force)
+        make_pages(x, site_info, html_path)
         if len(x := [(k, id2path(k), manif[k].hash_) for k in upd_i]) else {}
     )
     print(f":: {len(upd_data)} page(s) updated")
 
     if len(to_delete := del_i & html_ids):
         del_pages(to_delete, html_path)
-    print(f":: {len(to_delete)} page(s) deleted from disk")
+        print(f":: {len(to_delete)} page(s) deleted from disk")
 
     upd_data |= new_data
-    if force or len(del_i) or len(upd_data):
+    if force or info_updated or len(del_i) or len(upd_data):
         manif = {k: x for k, x in manif.items() if k not in del_i}
         manif |= upd_data
-        toc_data = [x for x in manif.values() if x.date is not None]
 
         if len(del_i):
             print(f":: {len(del_i)} page(s) dropped from manifest")
 
-        toc_html = generate_toc(toc_data)
-        save_html(toc_html, html_path)
-        print(f":: index with {len(toc_data)} post(s) generated")
+        page_infos = list(manif.values())
+        n_articles = make_tofc(page_infos, site_info, html_path)
+        print(f":: index with {n_articles} post(s) generated")
 
+        manif_header = (site_info["title"], info_hash)
         with open(manifest_path, "w", newline="") as f:
-            save_manifest(f, manif.values())
+            save_manifest(f, manif_header, page_infos)
         print(":: updated manifest")
 
     if copy_extras:

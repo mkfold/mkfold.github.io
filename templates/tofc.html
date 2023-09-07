@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>kfold</title>
+<title>{{ site.title }}</title>
 <link rel="stylesheet" href="/styles.css">
 <script src="/dark.js"></script>
 <meta name="robots" content="noindex, nofollow" />
@@ -14,21 +14,27 @@
     <tr>
     <td class="logo"><a href="/"><img src="/logo.png"></a></td>
     <td>
-    <h1>kfold.net</h1>
-    <small>
-    <p>website of Mia K, AI/ML hacker.</p>
-    <a href="/about">about</a>.
-    <a href="/links">links</a>.
-    </small>
+        <h1>{{ site.title }}</h1>
+        <small>
+        {% if site.desc is defined and site.desc != None %}
+            <p>{{ site.desc }}</p>
+        {% endif %}
+        {% if site.links is defined %}{% for text in site.links %}
+            {{ text }}.
+        {% endfor %}{% endif %}
+        </small>
     </td>
     </tr>
 </table>
 </div>
 <div id="body" class="toc">
 <table>
-    {% for item in toc -%}
+    {% if site.html is defined and site.html != None %}
+        <tr> {{ site.html }} </tr>
+    {% endif %}
+    {% for item in tofc -%}
         <tr class="aref"><td class="date">{{ item.date }}</td><td><a href="/{{ item.id_ }}" class="name">{{ item.title }}</a>
-        {%- if item.desc is defined and item != None %} - <span class="desc">{{ item.desc }}</span>{% endif -%}
+        {%- if item.desc is defined and item.desc != None %} - <span class="desc">{{ item.desc }}</span>{% endif -%}
     </td></tr>
     {% endfor %}
 </table>
