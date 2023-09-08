@@ -54,13 +54,13 @@ def hash_file(f):
 def process_md(text):
     md = markdown.Markdown(extensions=MD_EXTENSIONS)
     html = md.convert(text)
+    meta = md.Meta.items()
 
-    def parse_meta_str(x):
-        x = markdown.markdown(x)
+    def process_str(x):
+        x = markdown.markdown(x, extensions=["extra"])
         return x.removeprefix("<p>").removesuffix("</p>")
 
-    meta = {k: [parse_meta_str(x) for x in v] for k, v in md.Meta.items()}
-    meta = {k: v[0] if len(v) == 1 else v for k, v in meta.items()}
+    meta = {k: '\n'.join(process_str(x) for x in v) for k, v in meta}
     return html, meta
 
 
